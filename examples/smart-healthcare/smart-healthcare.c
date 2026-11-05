@@ -1,0 +1,191 @@
+# include "contiki.h"
+# include <stdio.h>
+# include <stdlib.h>
+# include <string.h>
+# include <stdbool.h>
+# include <time.h>
+
+struct usuario_dados {
+    char nome[50];
+    long idade;
+};
+
+struct usuario_dados usuario;
+
+typedef struct {
+    int fc_min, fc_max;
+    int spo2_normal, spo2_baixa;
+    double temp_febre, temp_hipo;
+} Limites;
+
+// Originalmente fiz com um .csv com dados reais
+// essa tabela declarada é uma adaptação para o envio em um arquivo unico .c
+//
+// tabela[idade], idade de 0 a 120
+// campos: frequencia_cardiaca_min, frequencia_cardiaca_max, saturacao_normal, saturacao_baixa, temp_febre, temp_hipo
+static const Limites tabela[121] = { [0] = {100, 205, 95, 90, 38.0, 36.0}, [1] = {98, 140, 95, 90, 38.0, 35.0}, [2] = {98, 140, 95, 90, 38.0, 35.0}, [3] = {80, 120, 95, 90, 38.0, 35.0}, [4] = {80, 120, 95, 90, 38.0, 35.0}, [5] = {80, 120, 95, 90, 38.0, 35.0}, [6] = {75, 118, 95, 90, 38.0, 35.0}, [7] = {75, 118, 95, 90, 38.0, 35.0}, [8] = {75, 118, 95, 90, 38.0, 35.0}, [9] = {75, 118, 95, 90, 38.0, 35.0}, [10] = {75, 118, 95, 90, 38.0, 35.0}, [11] = {75, 118, 95, 90, 38.0, 35.0}, [12] = {60, 100, 95, 90, 38.0, 35.0}, [13] = {60, 100, 95, 90, 38.0, 35.0}, [14] = {60, 100, 95, 90, 38.0, 35.0}, [15] = {60, 100, 95, 90, 38.0, 35.0}, [16] = {60, 100, 95, 90, 38.0, 35.0}, [17] = {60, 100, 95, 90, 38.0, 35.0}, [18] = {60, 100, 95, 90, 38.0, 35.0}, [19] = {60, 100, 95, 90, 38.0, 35.0}, [20] = {60, 100, 95, 90, 38.0, 35.0}, [21] = {60, 100, 95, 90, 38.0, 35.0}, [22] = {60, 100, 95, 90, 38.0, 35.0}, [23] = {60, 100, 95, 90, 38.0, 35.0}, [24] = {60, 100, 95, 90, 38.0, 35.0}, [25] = {60, 100, 95, 90, 38.0, 35.0}, [26] = {60, 100, 95, 90, 38.0, 35.0}, [27] = {60, 100, 95, 90, 38.0, 35.0}, [28] = {60, 100, 95, 90, 38.0, 35.0}, [29] = {60, 100, 95, 90, 38.0, 35.0}, [30] = {60, 100, 95, 90, 38.0, 35.0}, [31] = {60, 100, 95, 90, 38.0, 35.0}, [32] = {60, 100, 95, 90, 38.0, 35.0}, [33] = {60, 100, 95, 90, 38.0, 35.0}, [34] = {60, 100, 95, 90, 38.0, 35.0}, [35] = {60, 100, 95, 90, 38.0, 35.0}, [36] = {60, 100, 95, 90, 38.0, 35.0}, [37] = {60, 100, 95, 90, 38.0, 35.0}, [38] = {60, 100, 95, 90, 38.0, 35.0}, [39] = {60, 100, 95, 90, 38.0, 35.0}, [40] = {60, 100, 95, 90, 38.0, 35.0}, [41] = {60, 100, 95, 90, 38.0, 35.0}, [42] = {60, 100, 95, 90, 38.0, 35.0}, [43] = {60, 100, 95, 90, 38.0, 35.0}, [44] = {60, 100, 95, 90, 38.0, 35.0}, [45] = {60, 100, 95, 90, 38.0, 35.0}, [46] = {60, 100, 95, 90, 38.0, 35.0}, [47] = {60, 100, 95, 90, 38.0, 35.0}, [48] = {60, 100, 95, 90, 38.0, 35.0}, [49] = {60, 100, 95, 90, 38.0, 35.0}, [50] = {60, 100, 95, 90, 38.0, 35.0}, [51] = {60, 100, 95, 90, 38.0, 35.0}, [52] = {60, 100, 95, 90, 38.0, 35.0}, [53] = {60, 100, 95, 90, 38.0, 35.0}, [54] = {60, 100, 95, 90, 38.0, 35.0}, [55] = {60, 100, 95, 90, 38.0, 35.0}, [56] = {60, 100, 95, 90, 38.0, 35.0}, [57] = {60, 100, 95, 90, 38.0, 35.0}, [58] = {60, 100, 95, 90, 38.0, 35.0}, [59] = {60, 100, 95, 90, 38.0, 35.0}, [60] = {60, 100, 95, 90, 38.0, 35.0}, [61] = {60, 100, 95, 90, 38.0, 35.0}, [62] = {60, 100, 95, 90, 38.0, 35.0}, [63] = {60, 100, 95, 90, 38.0, 35.0}, [64] = {60, 100, 95, 90, 38.0, 35.0}, [65] = {60, 100, 95, 90, 37.8, 35.0}, [66] = {60, 100, 95, 90, 37.8, 35.0}, [67] = {60, 100, 95, 90, 37.8, 35.0}, [68] = {60, 100, 95, 90, 37.8, 35.0}, [69] = {60, 100, 95, 90, 37.8, 35.0}, [70] = {60, 100, 94, 90, 37.8, 35.0}, [71] = {60, 100, 94, 90, 37.8, 35.0}, [72] = {60, 100, 94, 90, 37.8, 35.0}, [73] = {60, 100, 94, 90, 37.8, 35.0}, [74] = {60, 100, 94, 90, 37.8, 35.0}, [75] = {60, 100, 94, 90, 37.8, 35.0}, [76] = {60, 100, 94, 90, 37.8, 35.0}, [77] = {60, 100, 94, 90, 37.8, 35.0}, [78] = {60, 100, 94, 90, 37.8, 35.0}, [79] = {60, 100, 94, 90, 37.8, 35.0}, [80] = {60, 100, 94, 90, 37.8, 35.0}, [81] = {60, 100, 94, 90, 37.8, 35.0}, [82] = {60, 100, 94, 90, 37.8, 35.0}, [83] = {60, 100, 94, 90, 37.8, 35.0}, [84] = {60, 100, 94, 90, 37.8, 35.0}, [85] = {60, 100, 94, 90, 37.8, 35.0}, [86] = {60, 100, 94, 90, 37.8, 35.0}, [87] = {60, 100, 94, 90, 37.8, 35.0}, [88] = {60, 100, 94, 90, 37.8, 35.0}, [89] = {60, 100, 94, 90, 37.8, 35.0}, [90] = {60, 100, 94, 90, 37.8, 35.0}, [91] = {60, 100, 94, 90, 37.8, 35.0}, [92] = {60, 100, 94, 90, 37.8, 35.0}, [93] = {60, 100, 94, 90, 37.8, 35.0}, [94] = {60, 100, 94, 90, 37.8, 35.0}, [95] = {60, 100, 94, 90, 37.8, 35.0}, [96] = {60, 100, 94, 90, 37.8, 35.0}, [97] = {60, 100, 94, 90, 37.8, 35.0}, [98] = {60, 100, 94, 90, 37.8, 35.0}, [99] = {60, 100, 94, 90, 37.8, 35.0}, [100] = {60, 100, 94, 90, 37.8, 35.0}, [101] = {60, 100, 94, 90, 37.8, 35.0}, [102] = {60, 100, 94, 90, 37.8, 35.0}, [103] = {60, 100, 94, 90, 37.8, 35.0}, [104] = {60, 100, 94, 90, 37.8, 35.0}, [105] = {60, 100, 94, 90, 37.8, 35.0}, [106] = {60, 100, 94, 90, 37.8, 35.0}, [107] = {60, 100, 94, 90, 37.8, 35.0}, [108] = {60, 100, 94, 90, 37.8, 35.0}, [109] = {60, 100, 94, 90, 37.8, 35.0}, [110] = {60, 100, 94, 90, 37.8, 35.0}, [111] = {60, 100, 94, 90, 37.8, 35.0}, [112] = {60, 100, 94, 90, 37.8, 35.0}, [113] = {60, 100, 94, 90, 37.8, 35.0}, [114] = {60, 100, 94, 90, 37.8, 35.0}, [115] = {60, 100, 94, 90, 37.8, 35.0}, [116] = {60, 100, 94, 90, 37.8, 35.0}, [117] = {60, 100, 94, 90, 37.8, 35.0}, [118] = {60, 100, 94, 90, 37.8, 35.0}, [119] = {60, 100, 94, 90, 37.8, 35.0}, [120] = {60, 100, 94, 90, 37.8, 35.0} };
+
+// Evento compartilhado entre os processos para alertar possíveis criticidades
+static process_event_t EVENTO_INDICADORES_CRITICOS;
+
+PROCESS(PTemperature, "Temperatura");
+PROCESS(PBloodSaturation, "Saturação Sanguínea");
+PROCESS(PHeartRate, "Frequência Cardíaca");
+PROCESS(PAlterationAlert, "Alerta de criticidade");
+PROCESS(PSmartWatch, "Smart Watch");
+
+AUTOSTART_PROCESSES(&PSmartWatch);
+
+PROCESS_THREAD(PSmartWatch, ev, data){
+
+    char linha[50], *fim;
+    bool cadastro_efetuado = false;
+
+    PROCESS_BEGIN();
+
+    srand(time(NULL));
+    usuario.idade = -1;
+    usuario.nome[0] = '\0';
+
+    while (!cadastro_efetuado){
+        if (usuario.nome[0] == '\0'){
+            printf("Insira seu nome: ");
+            if (!fgets(linha, sizeof(linha), stdin)) {
+                printf("Erro ao inserir nome. Tente novamente!\n");
+                continue;
+            }
+            linha[strcspn(linha, "\n")] = '\0';
+            strncpy(usuario.nome, linha, sizeof(usuario.nome) - 1);
+        }
+
+        if (usuario.idade == -1){
+            printf("Insira sua Idade: ");
+            if (!fgets(linha, sizeof(linha), stdin)) {
+                printf("Erro ao inserir idade. Tente novamente!\n");
+                continue;
+            }
+            usuario.idade = strtol(linha, &fim, 10);
+            if (fim == linha || (*fim != '\n' && *fim != '\0') || usuario.idade < 0 || usuario.idade > 120) {
+                printf("Idade Inválida. Tente novamente!\n");
+                usuario.idade = -1;
+                continue;
+            }
+            cadastro_efetuado = true;
+        }
+    }
+
+    EVENTO_INDICADORES_CRITICOS = process_alloc_event();
+
+    process_start(&PAlterationAlert, NULL);
+    process_start(&PTemperature, &usuario);
+    process_start(&PBloodSaturation, &usuario);
+    process_start(&PHeartRate, &usuario);
+
+    PROCESS_END();
+}
+
+PROCESS_THREAD(PTemperature, ev, data){
+
+    static struct usuario_dados *dados;
+    static struct etimer timer;
+
+    PROCESS_BEGIN();
+
+    dados = (struct usuario_dados *) data;
+
+    etimer_set(&timer, 3 * CLOCK_SECOND);
+
+    while (1){
+        double rand_temp = 32.0 + (rand() % 96) / 10.0;
+        printf("Temperatura: %f", rand_temp);
+
+        if (rand_temp < tabela[dados->idade].temp_hipo) {
+            printf("ALERTA: Temperatura abaixo do normal!\n");
+            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+        }
+        else if (rand_temp > tabela[dados->idade].temp_febre) {
+            printf("ALERTA: Temperatura acima do normal!\n");
+            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+        }
+
+        PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+        etimer_reset(&timer);
+    }
+    PROCESS_END();
+}
+
+PROCESS_THREAD(PBloodSaturation, ev, data){
+
+    static struct usuario_dados *dados;
+    static struct etimer timer;
+
+    PROCESS_BEGIN();
+
+    dados = (struct usuario_dados *) data;
+
+    etimer_set(&timer, 3 * CLOCK_SECOND);
+
+    while (1){
+        
+        int rand_sat = 80 + (rand() % 21);
+        printf("Saturação Sanguínea: %f", rand_sat);
+        
+        if (rand_sat < tabela[dados->idade].spo2_baixa) {
+            printf("ALERTA: Saturação sanguínea crítica!\n");
+            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+        }
+        else if (tabela[dados->idade].spo2_normal < rand_sat >= tabela[dados->idade].spo2_baixa) {
+            printf("ATENÇÃO: Saturação sanguínea em alerta!\n");
+            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+        }
+
+        PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+        etimer_reset(&timer);
+    }
+    PROCESS_END();
+}
+
+PROCESS_THREAD(PHeartRate, ev, data){
+    
+    static struct usuario_dados *dados;
+    static struct etimer timer;
+
+    PROCESS_BEGIN();
+
+    dados = (struct usuario_dados *) data;
+
+    etimer_set(&timer, 3 * CLOCK_SECOND);
+
+    while (1){
+        int rand_rate = 30 + (rand() % 171);
+        printf("Saturação Sanguínea: %f", rand_rate);
+        
+        if (rand_rate <= tabela[dados->idade].fc_min) {
+            printf("ALERTA: Frequência cardíaca abaixo do normal!\n");
+            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+        }
+        else if (rand_rate > tabela[dados->idade].fc_max) {
+            printf("ALERTA: Frequência cardíaca acima do normal!\n");
+            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+        }
+        
+        PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+        etimer_reset(&timer);
+    }
+    PROCESS_END();
+}
+
+PROCESS_THREAD(PAlterationAlert, ev, data) {
+    static struct usuario_dados *dados;
+
+    PROCESS_BEGIN();
+
+    dados = (struct usuario_dados *) data;
+
+    while (1) {
+        PROCESS_WAIT_EVENT_UNTIL(ev == EVENTO_INDICADORES_CRITICOS);
+    }
+
+    PROCESS_END();
+}
+
