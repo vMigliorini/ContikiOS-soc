@@ -10,11 +10,31 @@ struct usuario_dados {
     long idade;
 };
 
+typedef enum {
+    SENSOR_TEMPERATURA,
+    SENSOR_SATURACAO,
+    SENSOR_FREQUENCIA_CARDIACA
+} TipoSensor;
+
+typedef enum {
+    ABAIXO_DO_LIMITE,
+    ACIMA_DO_LIMITE,
+    ZONA_DE_RISCO
+} TipoAlteracao;
+
+typedef struct {
+    TipoSensor sensor;
+    double valor;
+    double limite_inferior;
+    double limite_superior;
+    TipoAlteracao alteracao;
+} DadosAlerta;
+
 struct usuario_dados usuario;
 
 typedef struct {
     int fc_min, fc_max;
-    int spo2_normal, spo2_baixa;
+    int sat_normal, sat_baixa;
     double temp_febre, temp_hipo;
 } Limites;
 
@@ -84,10 +104,21 @@ PROCESS_THREAD(PSmartWatch, ev, data){
     PROCESS_END();
 }
 
+static void enviar_alerta(DadosAlerta *alerta, TipoSensor sensor, double valor, double limite_inferior, double limite_superior, TipoAlteracao alteracao) {
+    alerta->sensor = sensor;
+    alerta->valor = valor;
+    alerta->limite_inferior = limite_inferior;
+    alerta->limite_superior = limite_superior;
+    alerta->alteracao = alteracao;
+
+    process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, alerta);
+}
+
 PROCESS_THREAD(PTemperature, ev, data){
 
     static struct usuario_dados *dados;
     static struct etimer timer;
+    static DadosAlerta alerta_temp;
 
     PROCESS_BEGIN();
 
@@ -100,12 +131,11 @@ PROCESS_THREAD(PTemperature, ev, data){
         printf("Temperatura: %f", rand_temp);
 
         if (rand_temp < tabela[dados->idade].temp_hipo) {
-            printf("ALERTA: Temperatura abaixo do normal!\n");
-            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+            enviar_alerta(&alerta_temp, SENSOR_TEMPERATURA, rand_temp, tabela[dados->idade].temp_hipo, tabela[dados->idade].temp_hipo, ABAIXO_DO_LIMITE);
+
         }
         else if (rand_temp > tabela[dados->idade].temp_febre) {
-            printf("ALERTA: Temperatura acima do normal!\n");
-            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+            enviar_alerta(&alerta_temp, SENSOR_TEMPERATURA, rand_temp, tabela[dados->idade].temp_febre, tabela[dados->idade].temp_febre, ACIMA_DO_LIMITE);
         }
 
         PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
@@ -118,6 +148,7 @@ PROCESS_THREAD(PBloodSaturation, ev, data){
 
     static struct usuario_dados *dados;
     static struct etimer timer;
+    static DadosAlerta alerta_sat;
 
     PROCESS_BEGIN();
 
@@ -130,13 +161,11 @@ PROCESS_THREAD(PBloodSaturation, ev, data){
         int rand_sat = 80 + (rand() % 21);
         printf("Saturação Sanguínea: %f", rand_sat);
         
-        if (rand_sat < tabela[dados->idade].spo2_baixa) {
-            printf("ALERTA: Saturação sanguínea crítica!\n");
-            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+        if (rand_sat < tabela[dados->idade].sat_baixa) {
+            enviar_alerta(&alerta_sat, SENSOR_SATURACAO, rand_sat, tabela[dados->idade].sat_baixa, ABAIXO_DO_LIMITE);
         }
-        else if (tabela[dados->idade].spo2_normal < rand_sat >= tabela[dados->idade].spo2_baixa) {
-            printf("ATENÇÃO: Saturação sanguínea em alerta!\n");
-            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+        else if (rand_sat >= tabela[dados->idade].sat_baixa && rand_sat < tabela[dados->idade].sat_normal) {
+            enviar_alerta(&alerta_sat, SENSOR_SATURACAO, rand_sat, tabela[dados->idade].sat_baixa, tabela[dados->idade].sat_normal, ZONA_DE_RISCO);
         }
 
         PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
@@ -149,6 +178,7 @@ PROCESS_THREAD(PHeartRate, ev, data){
     
     static struct usuario_dados *dados;
     static struct etimer timer;
+    static DadosAlerta alerta_freq;
 
     PROCESS_BEGIN();
 
@@ -161,12 +191,10 @@ PROCESS_THREAD(PHeartRate, ev, data){
         printf("Saturação Sanguínea: %f", rand_rate);
         
         if (rand_rate <= tabela[dados->idade].fc_min) {
-            printf("ALERTA: Frequência cardíaca abaixo do normal!\n");
-            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+            enviar_alerta(&alerta_freq, SENSOR_FREQUENCIA_CARDIACA, rand_rate, tabela[dados->idade].fc_min, tabela[dados->idade].fc_min, ABAIXO_DO_LIMITE);
         }
         else if (rand_rate > tabela[dados->idade].fc_max) {
-            printf("ALERTA: Frequência cardíaca acima do normal!\n");
-            process_post(&PAlterationAlert, EVENTO_INDICADORES_CRITICOS, NULL);
+            enviar_alerta(&alerta_freq, SENSOR_FREQUENCIA_CARDIACA, rand_rate, tabela[dados->idade].fc_max, tabela[dados->idade].fc_max, ACIMA_DO_LIMITE);
         }
         
         PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
@@ -176,16 +204,75 @@ PROCESS_THREAD(PHeartRate, ev, data){
 }
 
 PROCESS_THREAD(PAlterationAlert, ev, data) {
-    static struct usuario_dados *dados;
+
+    static DadosAlerta *alerta;
+    static const char *nome_sensor;
 
     PROCESS_BEGIN();
 
-    dados = (struct usuario_dados *) data;
+    dados_ev = (struct evento_dados *) data;
 
     while (1) {
         PROCESS_WAIT_EVENT_UNTIL(ev == EVENTO_INDICADORES_CRITICOS);
-    }
+        if (data != NULL) {
+            alerta = (DadosAlerta *) data;
 
+            switch (alerta->sensor) {
+                case SENSOR_TEMPERATURA:
+                    nome_sensor = "Temperatura";
+                    break;
+
+                case SENSOR_SATURACAO:
+                    nome_sensor = "Saturacao sanguinea";
+                    break;
+
+                case SENSOR_FREQUENCIA_CARDIACA:
+                    nome_sensor = "Frequencia cardiaca";
+                    break;
+            }
+            printf("\n");
+            printf("====================================\n");
+            printf("       ALERTA DE SAUDE CRITICO      \n");
+            printf("====================================\n");
+
+            printf("Indicador: %s\n", nome_sensor);
+            printf("Valor medido: %.2f\n", alerta->valor);
+            
+            switch (alerta->alteracao) {
+
+                case ABAIXO_DO_LIMITE:
+
+                    printf("Condicao: ABAIXO DO LIMITE\n");
+                    printf(
+                        "Limite minimo: %.2f\n",
+                        alerta->limite_inferior
+                    );
+                    break;
+
+                case ACIMA_DO_LIMITE:
+
+                    printf("Condicao: ACIMA DO LIMITE\n");
+                    printf(
+                        "Limite maximo: %.2f\n",
+                        alerta->limite_superior
+                    );
+                    break;
+
+                case ZONA_DE_RISCO:
+
+                    printf("Condicao: ZONA DE RISCO\n");
+                    printf(
+                        "Intervalo: %.2f ate %.2f\n",
+                        alerta->limite_inferior,
+                        alerta->limite_superior
+                    );
+                    break;
+            }
+
+            printf("====================================\n");
+            printf("\n");
+        }
+    }
     PROCESS_END();
 }
 
