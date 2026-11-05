@@ -93,6 +93,7 @@ PROCESS_THREAD(PSmartWatch, ev, data){
             cadastro_efetuado = true;
         }
     }
+    printf("\n");
 
     EVENTO_INDICADORES_CRITICOS = process_alloc_event();
 
@@ -127,8 +128,9 @@ PROCESS_THREAD(PTemperature, ev, data){
     etimer_set(&timer, 3 * CLOCK_SECOND);
 
     while (1){
-        double rand_temp = 32.0 + (rand() % 96) / 10.0;
-        printf("Temperatura: %f", rand_temp);
+        double rand_temp = 35.0 + (rand() % 36) / 10.0;
+        
+        printf("Temperatura: %f\n", rand_temp);
 
         if (rand_temp < tabela[dados->idade].temp_hipo) {
             enviar_alerta(&alerta_temp, SENSOR_TEMPERATURA, rand_temp, tabela[dados->idade].temp_hipo, tabela[dados->idade].temp_hipo, ABAIXO_DO_LIMITE);
@@ -158,8 +160,9 @@ PROCESS_THREAD(PBloodSaturation, ev, data){
 
     while (1){
         
-        int rand_sat = 80 + (rand() % 21);
-        printf("Saturação Sanguínea: %d", rand_sat);
+        int rand_sat = 93 + (rand() % 8);
+
+        printf("Saturação Sanguínea: %d\n", rand_sat);
         
         if (rand_sat < tabela[dados->idade].sat_baixa) {
             enviar_alerta(&alerta_sat, SENSOR_SATURACAO, rand_sat, tabela[dados->idade].sat_baixa, tabela[dados->idade].sat_baixa, ABAIXO_DO_LIMITE);
@@ -187,8 +190,9 @@ PROCESS_THREAD(PHeartRate, ev, data){
     etimer_set(&timer, 3 * CLOCK_SECOND);
 
     while (1){
-        int rand_rate = 30 + (rand() % 171);
-        printf("Saturação Sanguínea: %d", rand_rate);
+        int rand_rate = tabela[dados->idade].fc_min - 5 + (rand() % (tabela[dados->idade].fc_max - tabela[dados->idade].fc_min + 11));
+
+        printf("Frequência cardíaca: %d\n", rand_rate);
         
         if (rand_rate <= tabela[dados->idade].fc_min) {
             enviar_alerta(&alerta_freq, SENSOR_FREQUENCIA_CARDIACA, rand_rate, tabela[dados->idade].fc_min, tabela[dados->idade].fc_min, ABAIXO_DO_LIMITE);
