@@ -159,10 +159,10 @@ PROCESS_THREAD(PBloodSaturation, ev, data){
     while (1){
         
         int rand_sat = 80 + (rand() % 21);
-        printf("Saturação Sanguínea: %f", rand_sat);
+        printf("Saturação Sanguínea: %d", rand_sat);
         
         if (rand_sat < tabela[dados->idade].sat_baixa) {
-            enviar_alerta(&alerta_sat, SENSOR_SATURACAO, rand_sat, tabela[dados->idade].sat_baixa, ABAIXO_DO_LIMITE);
+            enviar_alerta(&alerta_sat, SENSOR_SATURACAO, rand_sat, tabela[dados->idade].sat_baixa, tabela[dados->idade].sat_baixa, ABAIXO_DO_LIMITE);
         }
         else if (rand_sat >= tabela[dados->idade].sat_baixa && rand_sat < tabela[dados->idade].sat_normal) {
             enviar_alerta(&alerta_sat, SENSOR_SATURACAO, rand_sat, tabela[dados->idade].sat_baixa, tabela[dados->idade].sat_normal, ZONA_DE_RISCO);
@@ -188,7 +188,7 @@ PROCESS_THREAD(PHeartRate, ev, data){
 
     while (1){
         int rand_rate = 30 + (rand() % 171);
-        printf("Saturação Sanguínea: %f", rand_rate);
+        printf("Saturação Sanguínea: %d", rand_rate);
         
         if (rand_rate <= tabela[dados->idade].fc_min) {
             enviar_alerta(&alerta_freq, SENSOR_FREQUENCIA_CARDIACA, rand_rate, tabela[dados->idade].fc_min, tabela[dados->idade].fc_min, ABAIXO_DO_LIMITE);
@@ -209,8 +209,6 @@ PROCESS_THREAD(PAlterationAlert, ev, data) {
     static const char *nome_sensor;
 
     PROCESS_BEGIN();
-
-    dados_ev = (struct evento_dados *) data;
 
     while (1) {
         PROCESS_WAIT_EVENT_UNTIL(ev == EVENTO_INDICADORES_CRITICOS);
@@ -237,7 +235,7 @@ PROCESS_THREAD(PAlterationAlert, ev, data) {
 
             printf("Indicador: %s\n", nome_sensor);
             printf("Valor medido: %.2f\n", alerta->valor);
-            
+
             switch (alerta->alteracao) {
 
                 case ABAIXO_DO_LIMITE:
